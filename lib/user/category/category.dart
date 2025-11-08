@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../constants.dart';
 
 class Category extends StatefulWidget
@@ -151,7 +154,7 @@ class ItemsState extends State<Items>
                         SizedBox(width: size.width * 10 / 100),
                         InkWell(
                           onTap: () {
-                           // _share(list[index]['c_images']);
+                            _share(list[index]['c_images']);
                           },
                           child: Icon(Icons.share, color: Colors.white),
                         ),
@@ -170,6 +173,19 @@ class ItemsState extends State<Items>
         }),
       ),
     );
+  }
+
+  void _share(list) async
+  {
+    String fileName = list.substring(list.lastIndexOf("/") + 1);
+    final uri = Uri.parse(list);
+    final res = await http.get(uri);
+    final bytes = res.bodyBytes;
+    final temp = await getTemporaryDirectory();
+    final path = '${temp.path}/$fileName';
+    File(path).writeAsBytesSync(bytes);
+    await Share.shareFiles([path]);
+
   }
 
 }
