@@ -1,11 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
-
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../constants.dart';
+import 'categorydb/categoryDB.dart';
+import 'categorydb/categoryDBModel.dart';
 
 class Category extends StatefulWidget
 {
@@ -24,6 +30,7 @@ class CategoryPage extends State<Category>
   var category_id;
   var category_nm;
 
+
   CategoryPage({this.category_id, this.category_nm});
 
   Future<List> viewCategoryItemsData() async
@@ -32,6 +39,8 @@ class CategoryPage extends State<Category>
         "https://prakrutitech.xyz/FlutterProject/category_images_view.php?data=${widget.index}"));
     return jsonDecode(responce.body);
   }
+
+
 
   @override
   Widget build(BuildContext context)
@@ -88,8 +97,16 @@ class ItemsState extends State<Items>
 {
   List list;
   var size;
+  DB db = DB();
+  String savePath = "";
 
   ItemsState({required this.list,this.size});
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    db = DB();
+  }
 
   @override
   Widget build(BuildContext context)
@@ -161,7 +178,7 @@ class ItemsState extends State<Items>
                         SizedBox(width: size.width * 17 / 95),
                         InkWell(
                           onTap: () {
-                           // _save(list[index]['c_images']);
+                            _save(list[index]['c_images']);
                           },
                           child: Icon(Icons.download, color: Colors.white),
                         ),
@@ -186,6 +203,88 @@ class ItemsState extends State<Items>
     File(path).writeAsBytesSync(bytes);
     await Share.shareFiles([path]);
 
+  }
+
+  void _save(list) async
+  {
+    var status = await Permission.manageExternalStorage.request();
+    _onLoad(true);
+    if(status.isGranted)
+    {
+      Future<String> createFolderInAppDocDir(String folderName) async
+      {
+        final Directory _appDocDir = await getApplicationDocumentsDirectory();
+        final Directory _appDocDirFolder =
+        Directory('${_appDocDir.path}/$folderName/');
+        if(await _appDocDirFolder.exists())
+        {
+          return _appDocDirFolder.path;
+        }
+        else
+        {
+          final Directory _appDocDirNewFolder =
+          await _appDocDirFolder.create(recursive: true);
+          return _appDocDirNewFolder.path;
+        }
+
+      }
+      String fileName = list.substring(list.lastIndexOf("/") + 1);
+      savePath = 'storage/emulated/0/Pictures/$fileName';
+      db.insertData(CategoryModel(url: savePath));
+
+      var response = await Dio()
+          .get(list, options: Options(responseType: ResponseType.bytes));
+      ImageGallerySaverPlus.saveImage(Uint8List.fromList(response.data), name: fileName);
+
+
+      Fluttertoast.showToast(
+          msg: "Image Downloaded Successfully",
+          toastLength: Toast.LENGTH_LONG,
+          timeInSecForIosWeb: 1);
+
+      _onLoadExit(true);
+    }
+    else
+    {
+      print("permission not granted");
+    }
+
+
+
+  }
+
+  void _onLoad(bool showBox) {
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return SimpleDialog(
+            backgroundColor: Colors.white,
+            children: [
+              Row(
+                children: [
+                  SizedBox(width: 15),
+                  CircularProgressIndicator(),
+                  SizedBox(width: 17),
+                  Text("Downloading...",
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontStyle: FontStyle.italic,
+                          letterSpacing: 1,
+                          color: Colors.blueGrey)),
+                ],
+              ),
+            ],
+          );
+        });
+  }
+
+  void _onLoadExit(bool exitBox) {
+    if (exitBox) {
+      Future.delayed(const Duration(milliseconds: 1), () {
+        Navigator.pop(context);
+      });
+    }
   }
 
 }
